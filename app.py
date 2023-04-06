@@ -30,6 +30,27 @@ async def on_ready():
     print(f"Logged in as {bot.user}")
 
 
+# default response to avoid interaction failure
+async def canned_respond(ctx: discord.ApplicationContext):
+    if not ctx.channel or ctx.channel.type is not discord.ChannelType.private:
+        await ctx.respond("DM'd 😏")
+    else:
+        await ctx.respond(
+            "Sterile technique is for nerds. I spit on my plates.", delete_after=0
+        )
+
+
+# /handled: list currently handled strains
+@bot.application_command(description="List strains currently handled by Spore Slinger")
+async def handled(ctx: discord.ApplicationContext):
+    await canned_respond(ctx)
+    msg = "**Currently handled strains:**\n"
+    for strain in scol.find().sort("name", 1):
+        name = strain["name"]
+        msg += f"{name}\n"
+    await ctx.author.send(msg[:-1])
+
+
 # play jingle when specific users join VC
 @bot.event
 async def on_voice_state_update(
