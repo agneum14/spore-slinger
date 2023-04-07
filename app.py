@@ -2,6 +2,7 @@ from time import sleep
 from os import listdir
 
 import discord
+from discord.commands import option
 from discord.ext import commands
 import pymongo
 
@@ -37,6 +38,7 @@ cat_descs = [
 
 @bot.event
 async def on_ready():
+    await bot.sync_commands()
     print(f"Logged in as {bot.user}")
 
 
@@ -62,6 +64,30 @@ def assert_trader(id: int):
         trader = tcol.find_one({"_id": id})
 
     return trader
+
+
+# /find: see who has a certain strain
+@bot.application_command(description="See who got what you want")
+async def find(ctx: discord.ApplicationContext, strain: str):
+    await canned_respond(ctx)
+
+    sid = scol.find_one({"name": strain})["_id"]  # type: ignore
+    trader_docs = tcol.find({"strains": {"$eq": sid}})
+
+    tags = []
+    for trader_doc in trader_docs:
+        trader_id = trader_doc["_id"]
+        user: discord.User = await bot.fetch_user(trader_id)
+        tag = f"{user.name}#{user.discriminator}"
+        tags.append(tag)
+
+    if len(tags) == 0:
+        await ctx.author.send(f"Nobody has {strain}. Tough luck bud!")
+    else:
+        msg = f"**{strain} is stocked by:**\n"
+        for tag in tags:
+            msg += f"{tag}\n"
+        await ctx.author.send(msg[:-1])
 
 
 # /compare: compare user's library with a parameterized user
