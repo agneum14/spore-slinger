@@ -95,9 +95,9 @@ async def find(ctx: discord.ApplicationContext, strain: str):
 async def compare(ctx: discord.ApplicationContext, mbr: discord.Member):
     await canned_respond(ctx)
 
-    if not [
-        astrain_ids := tcol.find_one({"_id": ctx.author.id}, {"strains": 1})
-    ] or not [mstrain_ids := tcol.find_one({"_id": mbr.id}, {"strains": 1})]:
+    astrain_ids = tcol.find_one({"_id": ctx.author.id}, {"strains": 1})
+    mstrain_ids = tcol.find_one({"_id": mbr.id}, {"strains": 1})
+    if not astrain_ids or not mstrain_ids:
         await ctx.author.send(
             "Comparison disallowed: one of you hasn't set up your library!\nUse /edit"
         )
