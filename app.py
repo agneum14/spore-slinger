@@ -64,6 +64,45 @@ def assert_trader(id: int):
     return trader
 
 
+# /compare: compare user's library with a parameterized user
+@bot.application_command(description="Compare your library to another gamer's")
+async def compare(ctx: discord.ApplicationContext, mbr: discord.Member):
+    await canned_respond(ctx)
+
+    if not [
+        astrain_ids := tcol.find_one({"_id": ctx.author.id}, {"strains": 1})
+    ] or not [mstrain_ids := tcol.find_one({"_id": mbr.id}, {"strains": 1})]:
+        await ctx.author.send(
+            "Comparison disallowed: one of you hasn't set up your library!\nUse /edit"
+        )
+        return
+
+    astrain_ids = astrain_ids["strains"]  # type: ignore
+    mstrain_ids = mstrain_ids["strains"]  # type: ignore
+    # get strain ids unique to author and mber
+    auniq_ids = list(set(astrain_ids) - set(mstrain_ids))
+    muniq_ids = list(set(mstrain_ids) - set(astrain_ids))
+
+    def add_names(ids):
+        msg = ""
+        names = []
+
+        for sid in ids:
+            names.append(scol.find_one({"_id": sid})["name"])  # type: ignore
+        names.sort()
+        for name in names:
+            msg += f"{name}\n"
+
+        return msg
+
+    msg = f"**Strains {mbr.name} has that you don't:**\n"
+    msg += add_names(muniq_ids)
+    msg += f"**Strains you have that {mbr.name} doesn't:**\n"
+    msg += add_names(auniq_ids)
+
+    await ctx.author.send(msg[:-1])
+
+
 # Button subclass for /edit command
 class EditButton(discord.ui.Button):
     def __init__(self, label, style, sid, trader):
@@ -144,11 +183,7 @@ async def handled(ctx: discord.ApplicationContext):
     msg = "**CURRENTLY HANDLED STRAINS:**\n"
     for desc, cat in zip(cat_descs, cats):
         msg += get_cat_msg(desc, cat)
-    # msg += get_cat_msg("Psilocybe Cubensis", "cubensis")
-    # msg += get_cat_msg("Albino Psilocybe Cubensis", "albino cubensis")
-    # msg += get_cat_msg("Other Psilocybes", "other psylocybe")
-    # msg += get_cat_msg("Psilocybe Panaelous", "panaelous")
-    # msg += get_cat_msg("Gourmets", "gourmet")
+
     await ctx.author.send(msg[:-1])
 
 
