@@ -40,14 +40,30 @@ async def canned_respond(ctx: discord.ApplicationContext):
         )
 
 
+# get strains in given category
+get_cat_strains = lambda category: scol.find({"category": category}).sort("name", 1)
+
+
 # /handled: list currently handled strains
 @bot.application_command(description="List strains currently handled by Spore Slinger")
 async def handled(ctx: discord.ApplicationContext):
     await canned_respond(ctx)
-    msg = "**Currently handled strains:**\n"
-    for strain in scol.find().sort("name", 1):
-        name = strain["name"]
-        msg += f"{name}\n"
+
+    def get_cat_msg(descriptor, category):
+        msg = f"**{descriptor}**\n"
+
+        for strain in get_cat_strains(category):
+            name = strain["name"]
+            msg += f"{name}\n"
+
+        return msg
+
+    msg = "**CURRENTLY HANDLED STRAINS:**\n"
+    msg += get_cat_msg("Psilocybe Cubensis", "cubensis")
+    msg += get_cat_msg("Albino Psilocybe Cubensis", "albino cubensis")
+    msg += get_cat_msg("Other Psilocybes", "other psylocybe")
+    msg += get_cat_msg("Psilocybe Panaelous", "panaelous")
+    msg += get_cat_msg("Gourmets", "gourmet")
     await ctx.author.send(msg[:-1])
 
 
