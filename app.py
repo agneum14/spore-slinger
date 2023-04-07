@@ -55,6 +55,24 @@ async def canned_respond(ctx: discord.ApplicationContext):
 get_cat_strains = lambda category: scol.find({"category": category}).sort("name", 1)
 
 
+# /peak: print library of given user
+@bot.application_command(description="Peak user's library")
+async def peak(ctx: discord.ApplicationContext, mbr: discord.Member):
+    await canned_respond(ctx)
+
+    tdoc = tcol.find_one({"_id": mbr.id})
+    if not tdoc:
+        await ctx.author.send(f"{mbr.name} has no library!")
+
+    msg = f"**{mbr.name}'s library:\n**"
+    strain_ids = tdoc["strains"]  # type: ignore
+    for sid in strain_ids:
+        name = scol.find_one({"_id": sid})["name"]  # type: ignore
+        msg += f"{name}\n"
+
+    await ctx.author.send(msg)
+
+
 # add new trader if ID not in category
 def assert_trader(sid: int):
     trader = tcol.find_one({"_id": sid})
