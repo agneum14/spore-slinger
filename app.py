@@ -38,7 +38,6 @@ cat_descs = [
 
 @bot.event
 async def on_ready():
-    await bot.sync_commands()
     print(f"Logged in as {bot.user}")
 
 
@@ -57,11 +56,12 @@ get_cat_strains = lambda category: scol.find({"category": category}).sort("name"
 
 
 # add new trader if ID not in category
-def assert_trader(id: int):
-    if not [trader := tcol.find_one({"_id": id})]:
-        data = {"_id": id, "strains": [], "whitelist_enabled": False, "whitelist": []}
+def assert_trader(sid: int):
+    trader = tcol.find_one({"_id": sid})
+    if not trader:
+        data = {"_id": sid, "strains": [], "whitelist": [], "whitelist_enabled": False}
         tcol.insert_one(data)
-        trader = tcol.find_one({"_id": id})
+        trader = tcol.find_one({"_id": sid})
 
     return trader
 
