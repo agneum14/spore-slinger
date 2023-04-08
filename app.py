@@ -55,6 +55,34 @@ async def canned_respond(ctx: discord.ApplicationContext):
 get_cat_strains = lambda category: scol.find({"category": category}).sort("name", 1)
 
 
+# get author document or False with message
+async def get_auth_tdoc(ctx: discord.ApplicationContext):
+    if tdoc := tcol.find_one({"_id": ctx.author.id}):
+        return tdoc
+    await ctx.author.send("You don't have a library! Create it with /edit")
+    return False
+
+
+# group for whitelist commands
+whitelist = bot.create_group("whitelist", "Alter and check your whitelist")
+
+
+# /whitelist toggle: enable/disable author's whitelist
+@whitelist.command(description="Toggle your whitelist")
+async def toggle(ctx: discord.ApplicationContext):
+    await canned_respond(ctx)
+
+    if not [tdoc := await get_auth_tdoc(ctx)]:
+        return
+
+    if tdoc["whitelist_enabled"]:  # type: ignore
+        tcol.update_one({"_id": ctx.author.id}, {"$set": {"whitelist_enabled": False}})
+        await ctx.author.send("Your whitelist has been *disabled*!")
+    else:
+        tcol.update_one({"_id": ctx.author.id}, {"$set": {"whitelist_enabled": True}})
+        await ctx.author.send("Your whitelist has been *enabled*!")
+
+
 # /peak: print library of given user
 @bot.application_command(description="Peak user's library")
 async def peak(ctx: discord.ApplicationContext, mbr: discord.Member):
@@ -71,17 +99,6 @@ async def peak(ctx: discord.ApplicationContext, mbr: discord.Member):
         msg += f"{name}\n"
 
     await ctx.author.send(msg)
-
-
-# add new trader if ID not in category
-def assert_trader(sid: int):
-    trader = tcol.find_one({"_id": sid})
-    if not trader:
-        data = {"_id": sid, "strains": [], "whitelist": [], "whitelist_enabled": False}
-        tcol.insert_one(data)
-        trader = tcol.find_one({"_id": sid})
-
-    return trader
 
 
 # /find: see who has a certain strain
@@ -174,6 +191,21 @@ class EditButton(discord.ui.Button):
 @bot.application_command(description="Edit your inventory, like a lewd MMORPG")
 async def edit(ctx: discord.ApplicationContext):
     await canned_respond(ctx)
+
+    # add new trader if ID not in category
+    def assert_trader(sid: int):
+        trader = tcol.find_one({"_id": sid})
+        if not trader:
+            data = {
+                "_id": sid,
+                "strains": [],
+                "whitelist": [],
+                "whitelist_enabled": False,
+            }
+            tcol.insert_one(data)
+            trader = tcol.find_one({"_id": sid})
+
+        return trader
 
     cat_views = []
     trader = assert_trader(ctx.author.id)
