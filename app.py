@@ -67,6 +67,40 @@ async def get_auth_tdoc(ctx: discord.ApplicationContext):
 whitelist = bot.create_group("whitelist", "Alter and check your whitelist")
 
 
+# /whitelist view: view author's whitelist
+@whitelist.command(description="view your whitelist")
+async def view(ctx: discord.ApplicationContext):
+    await canned_respond(ctx)
+
+    if not [tdoc := await get_auth_tdoc(ctx)]:
+        return
+    wle = tdoc["whitelist_enabled"]  # type: ignore
+    wl = tdoc["whitelist"]  # type: ignore
+
+    msg = f"Whitelist status: {wle}\nTrusted users:\n"
+    for uid in wl:
+        user = await bot.fetch_user(uid)
+        msg += f"{user.name}\n"
+
+    await ctx.author.send(msg[:-1])
+
+
+# /whitelist add: add given user to author's whitelist
+@whitelist.command(description="Add a user to your whitelist")
+async def add(ctx: discord.ApplicationContext, mbr: discord.Member):
+    await canned_respond(ctx)
+
+    if not [tdoc := await get_auth_tdoc(ctx)]:
+        return
+
+    wl: list[int] = tdoc["whitelist"]  # type: ignore
+    if not mbr.id in wl:
+        wl.append(mbr.id)
+        tcol.update_one({"_id": ctx.author.id}, {"$set": {"whitelist": wl}})
+
+    await ctx.author.send(f"Added {mbr.name} to your whitelist!")
+
+
 # /whitelist toggle: enable/disable author's whitelist
 @whitelist.command(description="Toggle your whitelist")
 async def toggle(ctx: discord.ApplicationContext):
