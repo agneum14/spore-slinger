@@ -63,7 +63,7 @@ def is_whitelisted(aid: int, mid: int) -> bool:
     wl = mdoc["whitelist"]
     wle = mdoc["whitelist_enabled"]
 
-    if wle and aid is not mid and not aid in wl:
+    if wle and not aid in wl and aid != mid:
         return False
     return True
 
