@@ -67,7 +67,60 @@ async def get_auth_tdoc(ctx: discord.ApplicationContext):
 whitelist = bot.create_group("whitelist", "Alter and check your whitelist")
 
 
-# /whitelist view: view author's whitelist
+# Select subclass for /whitelist remove command
+class WhiteListRemoveSelect(discord.ui.Select):
+    def __init__(self, options, aid, names, wl) -> None:
+        super().__init__(
+            placeholder="Select users",
+            min_values=0,
+            max_values=len(options),
+            options=options,
+        )
+        self.aid: int = aid
+        self.names: list[str] = names
+        self.wl: list[int] = wl
+
+    async def callback(self, interaction):
+        await interaction.response.defer()
+
+        for name in self._selected_values:
+            i = self.names.index(name)
+            self.names.pop(i)
+            self.wl.pop(i)
+        tcol.update_one({"_id": self.aid}, {"$set": {"whitelist": self.wl}})
+
+        await interaction.user.send("Removed selected users.")  # type: ignore
+
+
+# /whitelist remove: create Select menu to remove users from whitelist
+@whitelist.command(description="view your whitelist")
+async def remove(ctx: discord.ApplicationContext):
+    await canned_respond(ctx)
+
+    if not [tdoc := await get_auth_tdoc(ctx)]:
+        return
+    wl = tdoc["whitelist"]  # type: ignore
+    if len(wl) == 0:
+        await ctx.author.send("You don't have a whitelist!")
+        return
+
+    names: list[str] = list()
+    options: list[discord.SelectOption] = list()
+    for uid in wl:
+        user = await bot.fetch_user(uid)
+        name = user.name
+        names.append(name)
+        option = discord.SelectOption(label=name)
+        options.append(option)
+
+    select = WhiteListRemoveSelect(options, ctx.author.id, names, wl)
+    view = discord.ui.View()
+    view.add_item(select)
+
+    await ctx.author.send(view=view)
+
+
+# /whitelist view: print whitelist status and users
 @whitelist.command(description="view your whitelist")
 async def view(ctx: discord.ApplicationContext):
     await canned_respond(ctx)
