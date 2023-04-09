@@ -63,6 +63,19 @@ async def get_auth_tdoc(ctx: discord.ApplicationContext):
     return False
 
 
+# return if author is whitelisted by member
+def is_whitelisted(aid: int, mid: int) -> bool:
+    mdoc = tcol.find_one({"_id": mid}, {"whitelist": 1, "whitelist_enabled": 1})
+    if not mdoc:
+        return False
+    wl = mdoc["whitelist"]
+    wle = mdoc["whitelist_enabled"]
+
+    if wle and aid is not mid and not aid in wl:
+        return False
+    return True
+
+
 # group for whitelist commands
 whitelist = bot.create_group("whitelist", "Alter and check your whitelist")
 
@@ -93,7 +106,7 @@ class WhiteListRemoveSelect(discord.ui.Select):
 
 
 # /whitelist remove: create Select menu to remove users from whitelist
-@whitelist.command(description="view your whitelist")
+@whitelist.command(description="Remove users from your whitelist")
 async def remove(ctx: discord.ApplicationContext):
     await canned_respond(ctx)
 
@@ -121,7 +134,7 @@ async def remove(ctx: discord.ApplicationContext):
 
 
 # /whitelist view: print whitelist status and users
-@whitelist.command(description="view your whitelist")
+@whitelist.command(description="View your whitelist")
 async def view(ctx: discord.ApplicationContext):
     await canned_respond(ctx)
 
@@ -170,14 +183,17 @@ async def toggle(ctx: discord.ApplicationContext):
         await ctx.author.send("Your whitelist has been *enabled*!")
 
 
-# /peak: print library of given user
-@bot.application_command(description="Peak user's library")
-async def peak(ctx: discord.ApplicationContext, mbr: discord.Member):
+# /peek: print library of given user
+@bot.application_command(description="Peek user's library")
+async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
     await canned_respond(ctx)
 
     tdoc = tcol.find_one({"_id": mbr.id})
     if not tdoc:
         await ctx.author.send(f"{mbr.name} has no library!")
+    if not is_whitelisted(ctx.author.id, mbr.id):
+        await ctx.author.send(f"Peek disallowed: you're not on {mbr.name}'s whitelist!")
+        return
 
     msg = f"**{mbr.name}'s library:\n**"
     strain_ids = tdoc["strains"]  # type: ignore
@@ -199,6 +215,8 @@ async def find(ctx: discord.ApplicationContext, strain: str):
     tags = []
     for trader_doc in trader_docs:
         trader_id = trader_doc["_id"]
+        if not is_whitelisted(ctx.author.id, trader_id):
+            continue
         user: discord.User = await bot.fetch_user(trader_id)
         tag = f"{user.name}#{user.discriminator}"
         tags.append(tag)
@@ -222,6 +240,11 @@ async def compare(ctx: discord.ApplicationContext, mbr: discord.Member):
     if not astrain_ids or not mstrain_ids:
         await ctx.author.send(
             "Comparison disallowed: one of you hasn't set up your library!\nUse /edit"
+        )
+        return
+    if not is_whitelisted(ctx.author.id, mbr.id):
+        await ctx.author.send(
+            f"Comparison disallowed: you're not on {mbr.name}'s whitelist!"
         )
         return
 
