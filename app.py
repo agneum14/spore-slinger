@@ -41,16 +41,6 @@ async def on_ready():
     print(f"Logged in as {bot.user}")
 
 
-# default response to avoid interaction failure
-async def canned_respond(ctx: discord.ApplicationContext):
-    if not ctx.channel or ctx.channel.type is not discord.ChannelType.private:
-        await ctx.respond("DM'd 😏")
-    else:
-        await ctx.respond(
-            "Sterile technique is for nerds. I spit on my plates.", delete_after=0
-        )
-
-
 # get strains in given category
 get_cat_strains = lambda category: scol.find({"category": category}).sort("name", 1)
 
@@ -59,7 +49,9 @@ get_cat_strains = lambda category: scol.find({"category": category}).sort("name"
 async def get_auth_tdoc(ctx: discord.ApplicationContext):
     if tdoc := tcol.find_one({"_id": ctx.author.id}):
         return tdoc
-    await ctx.author.send("You don't have a library! Create it with /edit")
+    await ctx.send_response(
+        "You don't have a library! Create it with /edit", ephemeral=True
+    )
     return False
 
 
@@ -94,7 +86,7 @@ class WhiteListRemoveSelect(discord.ui.Select):
         self.wl: list[int] = wl
 
     async def callback(self, interaction):
-        await interaction.response.defer()
+        # await interaction.response.defer()
 
         for name in self._selected_values:
             i = self.names.index(name)
@@ -102,19 +94,21 @@ class WhiteListRemoveSelect(discord.ui.Select):
             self.wl.pop(i)
         tcol.update_one({"_id": self.aid}, {"$set": {"whitelist": self.wl}})
 
-        await interaction.user.send("Removed selected users.")  # type: ignore
+        await interaction.response.send_message(
+            "Removed selected users.", ephemeral=True
+        )
 
 
 # /whitelist remove: create Select menu to remove users from whitelist
 @whitelist.command(description="Remove users from your whitelist")
 async def remove(ctx: discord.ApplicationContext):
-    await canned_respond(ctx)
-
     if not [tdoc := await get_auth_tdoc(ctx)]:
         return
     wl = tdoc["whitelist"]  # type: ignore
     if len(wl) == 0:
-        await ctx.author.send("You don't have a whitelist!")
+        await ctx.send_response(
+            "You don't have anyone on your whitelist!", ephemeral=True
+        )
         return
 
     names: list[str] = list()
@@ -130,14 +124,12 @@ async def remove(ctx: discord.ApplicationContext):
     view = discord.ui.View()
     view.add_item(select)
 
-    await ctx.author.send(view=view)
+    await ctx.send_response(view=view, ephemeral=True)
 
 
 # /whitelist view: print whitelist status and users
 @whitelist.command(description="View your whitelist")
 async def view(ctx: discord.ApplicationContext):
-    await canned_respond(ctx)
-
     if not [tdoc := await get_auth_tdoc(ctx)]:
         return
     wle = tdoc["whitelist_enabled"]  # type: ignore
@@ -148,14 +140,12 @@ async def view(ctx: discord.ApplicationContext):
         user = await bot.fetch_user(uid)
         msg += f"{user.name}\n"
 
-    await ctx.author.send(msg[:-1])
+    await ctx.send_response(msg[:-1], ephemeral=True)
 
 
 # /whitelist add: add given user to author's whitelist
 @whitelist.command(description="Add a user to your whitelist")
 async def add(ctx: discord.ApplicationContext, mbr: discord.Member):
-    await canned_respond(ctx)
-
     if not [tdoc := await get_auth_tdoc(ctx)]:
         return
 
@@ -164,35 +154,36 @@ async def add(ctx: discord.ApplicationContext, mbr: discord.Member):
         wl.append(mbr.id)
         tcol.update_one({"_id": ctx.author.id}, {"$set": {"whitelist": wl}})
 
-    await ctx.author.send(f"Added {mbr.name} to your whitelist!")
+    await ctx.send_response(f"Added {mbr.name} to your whitelist!", ephemeral=True)
 
 
 # /whitelist toggle: enable/disable author's whitelist
 @whitelist.command(description="Toggle your whitelist")
 async def toggle(ctx: discord.ApplicationContext):
-    await canned_respond(ctx)
-
     if not [tdoc := await get_auth_tdoc(ctx)]:
         return
 
     if tdoc["whitelist_enabled"]:  # type: ignore
         tcol.update_one({"_id": ctx.author.id}, {"$set": {"whitelist_enabled": False}})
-        await ctx.author.send("Your whitelist has been *disabled*!")
+        await ctx.send_response("Your whitelist has been *disabled*!", ephemeral=True)
     else:
         tcol.update_one({"_id": ctx.author.id}, {"$set": {"whitelist_enabled": True}})
-        await ctx.author.send("Your whitelist has been *enabled*!")
+        await ctx.send_response("Your whitelist has been *enabled*!", ephemeral=True)
 
 
 # /peek: print library of given user
 @bot.application_command(description="Peek user's library")
 async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
-    await canned_respond(ctx)
-
     tdoc = tcol.find_one({"_id": mbr.id})
     if not tdoc:
-        await ctx.author.send(f"{mbr.name} has no library!")
+        await ctx.send_response(
+            f"Peek disallowed: {mbr.name} has no library!", ephemeral=True
+        )
+        return
     if not is_whitelisted(ctx.author.id, mbr.id):
-        await ctx.author.send(f"Peek disallowed: you're not on {mbr.name}'s whitelist!")
+        await ctx.send_response(
+            f"Peek disallowed: you're not on {mbr.name}'s whitelist!", ephemeral=True
+        )
         return
 
     msg = f"**{mbr.name}'s library:\n**"
@@ -201,14 +192,12 @@ async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
         name = scol.find_one({"_id": sid})["name"]  # type: ignore
         msg += f"{name}\n"
 
-    await ctx.author.send(msg)
+    await ctx.send_response(msg, ephemeral=True)
 
 
 # /find: see who has a certain strain
 @bot.application_command(description="See who got what you want")
 async def find(ctx: discord.ApplicationContext, strain: str):
-    await canned_respond(ctx)
-
     sid = scol.find_one({"name": strain})["_id"]  # type: ignore
     trader_docs = tcol.find({"strains": {"$eq": sid}})
 
@@ -222,29 +211,29 @@ async def find(ctx: discord.ApplicationContext, strain: str):
         tags.append(tag)
 
     if len(tags) == 0:
-        await ctx.author.send(f"Nobody has {strain}. Tough luck bud!")
+        await ctx.send_response(f"Nobody has {strain}. Tough luck bud!", ephemeral=True)
     else:
         msg = f"**{strain} is stocked by:**\n"
         for tag in tags:
             msg += f"{tag}\n"
-        await ctx.author.send(msg[:-1])
+        await ctx.send_response(msg[:-1], ephemeral=True)
 
 
 # /compare: compare user's library with a parameterized user
 @bot.application_command(description="Compare your library to another gamer's")
 async def compare(ctx: discord.ApplicationContext, mbr: discord.Member):
-    await canned_respond(ctx)
-
     astrain_ids = tcol.find_one({"_id": ctx.author.id}, {"strains": 1})
     mstrain_ids = tcol.find_one({"_id": mbr.id}, {"strains": 1})
     if not astrain_ids or not mstrain_ids:
-        await ctx.author.send(
-            "Comparison disallowed: one of you hasn't set up your library!\nUse /edit"
+        await ctx.send_response(
+            "Comparison disallowed: one of you hasn't set up your library!\nUse /edit",
+            ephemeral=True,
         )
         return
     if not is_whitelisted(ctx.author.id, mbr.id):
-        await ctx.author.send(
-            f"Comparison disallowed: you're not on {mbr.name}'s whitelist!"
+        await ctx.send_response(
+            f"Comparison disallowed: you're not on {mbr.name}'s whitelist!",
+            ephemeral=True,
         )
         return
 
@@ -271,7 +260,7 @@ async def compare(ctx: discord.ApplicationContext, mbr: discord.Member):
     msg += f"**Strains you have that {mbr.name} doesn't:**\n"
     msg += add_names(auniq_ids)
 
-    await ctx.author.send(msg[:-1])
+    await ctx.send_response(msg[:-1], ephemeral=True)
 
 
 # Button subclass for /edit command
@@ -300,8 +289,6 @@ class EditButton(discord.ui.Button):
 # /edit: user edits their strain list via clickable buttons
 @bot.application_command(description="Edit your inventory, like a lewd MMORPG")
 async def edit(ctx: discord.ApplicationContext):
-    await canned_respond(ctx)
-
     # add new trader if ID not in category
     def assert_trader(sid: int):
         trader = tcol.find_one({"_id": sid})
@@ -343,11 +330,14 @@ async def edit(ctx: discord.ApplicationContext):
         cat_views.append(views)
 
     async def send_cat_buttons(desc, cat_view):
-        await ctx.author.send(f"**{desc}**")
+        desc = desc.upper()
+        await ctx.send_followup(f"**{desc}**")
         for view in cat_view:
-            await ctx.author.send(view=view)
+            await ctx.send_followup(view=view, ephemeral=True)
 
-    await ctx.author.send("**BE PATIENT: DISCORD LIMITS MESSAGE FREQUENCY**")
+    await ctx.send_response(
+        "Click the buttons to add/remove strains in your library", ephemeral=True
+    )
     for desc, cat_view in zip(cat_descs, cat_views):
         await send_cat_buttons(desc, cat_view)
 
@@ -355,8 +345,6 @@ async def edit(ctx: discord.ApplicationContext):
 # /handled: list currently handled strains
 @bot.application_command(description="List strains currently handled by Spore Slinger")
 async def handled(ctx: discord.ApplicationContext):
-    await canned_respond(ctx)
-
     def get_cat_msg(descriptor, category):
         msg = f"**{descriptor}**\n"
 
@@ -370,7 +358,7 @@ async def handled(ctx: discord.ApplicationContext):
     for desc, cat in zip(cat_descs, cats):
         msg += get_cat_msg(desc, cat)
 
-    await ctx.author.send(msg[:-1])
+    await ctx.send_response(msg[:-1], ephemeral=True)
 
 
 # play jingle when specific users join VC
