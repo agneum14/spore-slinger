@@ -30,7 +30,7 @@ cats = ["cubensis", "albino cubensis", "other psylocybe", "panaelous", "gourmet"
 cat_descs = [
     "Psilocybe Cubensis",
     "Albino Psilocybe Cubensis",
-    "Other Psolocybes",
+    "Other Psilocybes",
     "Panaelous",
     "Gourmet",
 ]
@@ -331,7 +331,7 @@ async def edit(ctx: discord.ApplicationContext):
 
     async def send_cat_buttons(desc, cat_view):
         desc = desc.upper()
-        await ctx.send_followup(f"**{desc}**")
+        await ctx.send_followup(f"**{desc}**", ephemeral=True)
         for view in cat_view:
             await ctx.send_followup(view=view, ephemeral=True)
 
