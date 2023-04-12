@@ -5,6 +5,7 @@ import discord
 from discord.commands import option
 from discord.ext import commands
 import pymongo
+from thefuzz import fuzz, process
 
 import secret
 
@@ -34,6 +35,9 @@ cat_descs = [
     "Panaelous",
     "Gourmet",
 ]
+strain_names: list[str] = []
+for sdoc in scol.find({}, {"name": 1}):
+    strain_names.append(sdoc["name"])
 
 
 @bot.event
@@ -195,8 +199,22 @@ async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
     await ctx.send_response(msg, ephemeral=True)
 
 
+# autocomplete strain names
+async def auto_strains(ctx: discord.AutocompleteContext):
+    names: list[str] = []
+    fuzzed = process.extract(
+        ctx.value, strain_names, limit=25, scorer=fuzz.token_sort_ratio
+    )
+
+    for e in fuzzed:
+        names.append(e[0])
+
+    return [name for name in names]
+
+
 # /find: see who has a certain strain
 @bot.application_command(description="See who got what you want")
+@option("strain", description="Enter strain name", autocomplete=auto_strains)
 async def find(ctx: discord.ApplicationContext, strain: str):
     sid = scol.find_one({"name": strain})["_id"]  # type: ignore
     trader_docs = tcol.find({"strains": {"$eq": sid}})
