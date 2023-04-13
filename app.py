@@ -72,6 +72,42 @@ def is_whitelisted(aid: int, mid: int) -> bool:
     return True
 
 
+# autocomplete strain names
+async def auto_strains(ctx: discord.AutocompleteContext):
+    names: list[str] = []
+    fuzzed = process.extract(
+        ctx.value, strain_names, limit=25, scorer=fuzz.token_sort_ratio
+    )
+
+    for e in fuzzed:
+        names.append(e[0])
+
+    return [name for name in names]
+
+
+# /add: add shroom to library
+@bot.application_command(name="add", description="Add a shroom to your library")
+@option("shroom", description="Enter shroom", autocomplete=auto_strains)
+async def sadd(ctx: discord.ApplicationContext, shroom: str):
+    sid = scol.find_one({"name": shroom}, {"_id": 1})["_id"]  # type: ignore
+
+    adoc = await get_auth_tdoc(ctx)
+    if not adoc:
+        return
+
+    ashrooms = tcol.find_one({"_id": ctx.author.id}, {"strains": 1})["strains"]  # type: ignore
+    if sid in ashrooms:
+        await ctx.send_response(
+            f"You already have {shroom} in your library, you dingus 😜", ephemeral=True
+        )
+        return
+
+    ashrooms.append(sid)
+    tcol.update_one({"_id": ctx.author.id}, {"$set": {"strains": ashrooms}})
+
+    await ctx.send_response(f"Added {shroom} 😎", ephemeral=True)
+
+
 # group for whitelist commands
 whitelist = bot.create_group("whitelist", "Alter and check your whitelist")
 
@@ -176,7 +212,7 @@ async def toggle(ctx: discord.ApplicationContext):
 
 
 # /peek: print library of given user
-@bot.application_command(description="Peek user's library")
+@bot.application_command(description="Peek a user's library")
 async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
     tdoc = tcol.find_one({"_id": mbr.id})
     if not tdoc:
@@ -197,19 +233,6 @@ async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
         msg += f"{name}\n"
 
     await ctx.send_response(msg, ephemeral=True)
-
-
-# autocomplete strain names
-async def auto_strains(ctx: discord.AutocompleteContext):
-    names: list[str] = []
-    fuzzed = process.extract(
-        ctx.value, strain_names, limit=25, scorer=fuzz.token_sort_ratio
-    )
-
-    for e in fuzzed:
-        names.append(e[0])
-
-    return [name for name in names]
 
 
 # /find: see who has a certain strain
