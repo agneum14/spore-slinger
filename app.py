@@ -38,6 +38,7 @@ cat_descs = [
 strain_names: list[str] = []
 for sdoc in scol.find({}, {"name": 1}):
     strain_names.append(sdoc["name"])
+ashrooms: dict[int, list[str]] = {}
 
 
 @bot.event
@@ -72,8 +73,62 @@ def is_whitelisted(aid: int, mid: int) -> bool:
     return True
 
 
-# autocomplete strain names
-async def auto_strains(ctx: discord.AutocompleteContext):
+# autocomplete shrooms for /rm
+async def auto_rm(ctx: discord.AutocompleteContext):
+    aid = ctx.interaction.user.id  # type: ignore
+    shrooms: list[str] = []
+
+    if not aid in ashrooms:
+        adoc = tcol.find_one({"_id": aid}, {"strains": 1})
+        if adoc:
+            ashrooms[aid] = []
+            for shroom_id in adoc["strains"]:
+                name = scol.find_one({"_id": shroom_id}, {"name": 1})["name"]  # type: ignore
+                ashrooms[aid].append(name)
+
+    if aid in ashrooms and len(ashrooms[aid]) > 0:
+        fuzzed = process.extract(
+            ctx.value, ashrooms[aid], limit=25, scorer=fuzz.token_sort_ratio
+        )
+
+        for e in fuzzed:
+            shrooms.append(e[0])
+
+        return [shroom for shroom in shrooms]
+    else:
+        return ""
+
+
+# /remove: remove shroom from library
+@bot.application_command(description="Remove a shroom to your library")
+@option("shroom", description="Enter shroom", autocomplete=auto_rm)
+async def rm(ctx: discord.ApplicationContext, shroom: str):
+    aid = ctx.author.id
+    if not aid in ashrooms or len(ashrooms[aid]) == 0:
+        await ctx.send_response(
+            "You absolute buffoon! Your library is either non-existant or empty.",
+            ephemeral=True,
+        )
+        return
+
+    sdoc = scol.find_one({"name": shroom})
+    if not sdoc:
+        await ctx.send_response(
+            f"{shroom} isn't in the database! Choose from the list.", ephemeral=True
+        )
+        return
+    sid = sdoc["_id"]
+    asids = tcol.find_one({"_id": aid})["strains"]  # type: ignore
+
+    asids.remove(sid)
+    tcol.update_one({"_id": aid}, {"$set": {"strains": asids}})
+    ashrooms.pop(aid)
+
+    await ctx.send_response(f"Removed {shroom} from your library 😢", ephemeral=True)
+
+
+# autocomplete shrooms for /add
+async def auto_add(ctx: discord.AutocompleteContext):
     names: list[str] = []
     fuzzed = process.extract(
         ctx.value, strain_names, limit=25, scorer=fuzz.token_sort_ratio
@@ -87,7 +142,7 @@ async def auto_strains(ctx: discord.AutocompleteContext):
 
 # /add: add shroom to library
 @bot.application_command(name="add", description="Add a shroom to your library")
-@option("shroom", description="Enter shroom", autocomplete=auto_strains)
+@option("shroom", description="Enter shroom", autocomplete=auto_add)
 async def sadd(ctx: discord.ApplicationContext, shroom: str):
     sid = scol.find_one({"name": shroom}, {"_id": 1})["_id"]  # type: ignore
 
@@ -237,7 +292,7 @@ async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
 
 # /find: see who has a certain strain
 @bot.application_command(description="See who got what you want")
-@option("strain", description="Enter strain name", autocomplete=auto_strains)
+@option("strain", description="Enter strain name", autocomplete=auto_add)
 async def find(ctx: discord.ApplicationContext, strain: str):
     sid = scol.find_one({"name": strain})["_id"]  # type: ignore
     trader_docs = tcol.find({"strains": {"$eq": sid}})
