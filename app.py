@@ -43,6 +43,7 @@ ashrooms: dict[int, list[str]] = {}
 
 @bot.event
 async def on_ready():
+    await bot.sync_commands()
     print(f"Logged in as {bot.user}")
 
 
@@ -164,7 +165,7 @@ async def sadd(ctx: discord.ApplicationContext, shroom: str):
 
 
 # group for whitelist commands
-whitelist = bot.create_group("whitelist", "Alter and check your whitelist")
+whitelist = bot.create_group("wl", "Alter and check your whitelist")
 
 
 # Select subclass for /whitelist remove command
@@ -195,7 +196,7 @@ class WhiteListRemoveSelect(discord.ui.Select):
 
 
 # /whitelist remove: create Select menu to remove users from whitelist
-@whitelist.command(description="Remove users from your whitelist")
+@whitelist.command(description="Remove traders from your whitelist")
 async def remove(ctx: discord.ApplicationContext):
     if not [tdoc := await get_auth_tdoc(ctx)]:
         return
@@ -239,7 +240,7 @@ async def view(ctx: discord.ApplicationContext):
 
 
 # /whitelist add: add given user to author's whitelist
-@whitelist.command(description="Add a user to your whitelist")
+@whitelist.command(description="Add a trader to your whitelist")
 async def add(ctx: discord.ApplicationContext, mbr: discord.Member):
     if not [tdoc := await get_auth_tdoc(ctx)]:
         return
@@ -267,7 +268,7 @@ async def toggle(ctx: discord.ApplicationContext):
 
 
 # /peek: print library of given user
-@bot.application_command(description="Peek a user's library")
+@bot.application_command(description="Peek a trader's library")
 async def peek(ctx: discord.ApplicationContext, mbr: discord.Member):
     tdoc = tcol.find_one({"_id": mbr.id})
     if not tdoc:
@@ -383,7 +384,7 @@ class EditButton(discord.ui.Button):
 
 
 # /edit: user edits their strain list via clickable buttons
-@bot.application_command(description="Edit your inventory, like a lewd MMORPG")
+@bot.application_command(description="Edit your library, like a lewd MMORPG")
 async def edit(ctx: discord.ApplicationContext):
     # add new trader if ID not in category
     def assert_trader(sid: int):
@@ -455,6 +456,25 @@ async def handled(ctx: discord.ApplicationContext):
         msg += get_cat_msg(desc, cat)
 
     await ctx.send_response(msg[:-1], ephemeral=True)
+
+
+# /help: overview of commands
+@bot.application_command(description="You can figure out what a help command does.")
+async def help(ctx: discord.ApplicationContext):
+    msg = ""
+    msg += "**/add:** Add a shroom to your library\n"
+    msg += "**/compare:** Compare your library to another gamer's\n"
+    msg += "**/edit:** Edit your library, like a lewd MMORPG (useful for adding/removing many shrooms)\n"
+    msg += "**/find:** See who got what you want\n"
+    msg += "**/handled:** List strains currently handled by Spore Slinger\n"
+    msg += "**/peek**: Peek a trader's library\n"
+    msg += "**/rm**: Remove a shroom from your library\n"
+    msg += "**/wl view**: View your whitelist\n"
+    msg += "**/wl toggle**: Toggle your whitelist\n"
+    msg += "**/wl add**: Add a trader to your whitelist\n"
+    msg += "**/wl rm**: Remove traders from your whitelist"
+
+    await ctx.send_response(msg, ephemeral=True)
 
 
 # play jingle when specific users join VC
